@@ -3,16 +3,30 @@ Microsoft Visual Studio Solution File, Format Version 11.00
 # Visual Studio 2010
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "d3d11test", "d3d11test\d3d11test.vcxproj", "{E3177C1B-2ABA-4ACC-96AA-4F05585322AB}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Effects11", "Effects11\Effects11.vcxproj", "{DF460EAB-570D-4B50-9089-2E2FC801BF38}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
+		Debug|x64 = Debug|x64
 		Release|Win32 = Release|Win32
+		Release|x64 = Release|x64
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{E3177C1B-2ABA-4ACC-96AA-4F05585322AB}.Debug|Win32.ActiveCfg = Debug|Win32
 		{E3177C1B-2ABA-4ACC-96AA-4F05585322AB}.Debug|Win32.Build.0 = Debug|Win32
+		{E3177C1B-2ABA-4ACC-96AA-4F05585322AB}.Debug|x64.ActiveCfg = Debug|Win32
 		{E3177C1B-2ABA-4ACC-96AA-4F05585322AB}.Release|Win32.ActiveCfg = Release|Win32
 		{E3177C1B-2ABA-4ACC-96AA-4F05585322AB}.Release|Win32.Build.0 = Release|Win32
+		{E3177C1B-2ABA-4ACC-96AA-4F05585322AB}.Release|x64.ActiveCfg = Release|Win32
+		{DF460EAB-570D-4B50-9089-2E2FC801BF38}.Debug|Win32.ActiveCfg = Debug|Win32
+		{DF460EAB-570D-4B50-9089-2E2FC801BF38}.Debug|Win32.Build.0 = Debug|Win32
+		{DF460EAB-570D-4B50-9089-2E2FC801BF38}.Debug|x64.ActiveCfg = Debug|x64
+		{DF460EAB-570D-4B50-9089-2E2FC801BF38}.Debug|x64.Build.0 = Debug|x64
+		{DF460EAB-570D-4B50-9089-2E2FC801BF38}.Release|Win32.ActiveCfg = Release|Win32
+		{DF460EAB-570D-4B50-9089-2E2FC801BF38}.Release|Win32.Build.0 = Release|Win32
+		{DF460EAB-570D-4B50-9089-2E2FC801BF38}.Release|x64.ActiveCfg = Release|x64
+		{DF460EAB-570D-4B50-9089-2E2FC801BF38}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
