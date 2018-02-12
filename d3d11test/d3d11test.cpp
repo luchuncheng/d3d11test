@@ -40,9 +40,10 @@ struct Vertex
 	XMFLOAT2 Texcoord;
 };
 
+float kWidth = 800.0f, kHeight = 600.0f;
+
 ID3D11Device* kD3DDevice = NULL;
 ID3D11DeviceContext* kD3DDeviceContext = NULL;
-IDXGISwapChain* kSwapChain = NULL;
 ID3D11Texture2D* kBackBuffer = NULL;
 ID3D11Texture2D* kDepthStencilBuffer = NULL;
 ID3D11RenderTargetView* kRenderTargetView = NULL;
@@ -55,7 +56,6 @@ ID3DX11EffectTechnique* kTech = NULL;
 ID3DX11EffectMatrixVariable* fxWorldViewProj = NULL;
 
 ID3D11ShaderResourceView* kTexture = NULL;
-ID3D11SamplerState*       kSampleState = NULL;
 
 ID3D11Buffer* kVB = NULL;
 ID3D11Buffer* kIB = NULL;
@@ -219,7 +219,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 				// Draw the grid.
 				fxWorldViewProj->SetMatrix(reinterpret_cast<float*>(&viewProj));
 				kTech->GetPassByIndex(p)->Apply(0, kD3DDeviceContext);
-				kD3DDeviceContext->PSSetSamplers(0, 1, &kSampleState);
 				kD3DDeviceContext->PSSetShaderResources(0, 1, &kTexture);
 				kD3DDeviceContext->DrawIndexed(6, 0, 0);
 			}
@@ -229,8 +228,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 				kCapture = FALSE;
 				SaveTexture(kBackBuffer);
 			}
-
-			kSwapChain->Present(0, 0);
+			Sleep(10);
         }
     }
 
@@ -328,71 +326,59 @@ HRESULT CreateD3DDevice(HWND hWnd)
 				IDXGIFactory* dxgiFactory = 0;
 				hr = dxgiAdapter->GetParent(__uuidof(IDXGIFactory), (void**)&dxgiFactory);
 				if(SUCCEEDED(hr))
-				{
-					RECT rect;
-					GetClientRect(hWnd, &rect);
-					int width = rect.right - rect.left, height = rect.bottom - rect.top;
+				{					
+					D3D11_TEXTURE2D_DESC textureDesc;  
+					ZeroMemory(&textureDesc, sizeof(textureDesc));  
+  
+					textureDesc.Width = kWidth;  
+					textureDesc.Height = kHeight;  
+					textureDesc.MipLevels = 1;  
+					textureDesc.ArraySize = 1;  
+					textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;  //纹理像素为12个字节  
+					textureDesc.SampleDesc.Count = 1;  
+					textureDesc.Usage = D3D11_USAGE_DEFAULT;  
+					textureDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;  
+					textureDesc.CPUAccessFlags = 0;  
+					textureDesc.MiscFlags = 0;  
+  
+					hr = kD3DDevice->CreateTexture2D(&textureDesc, NULL, &kBackBuffer);
 
-					DXGI_SWAP_CHAIN_DESC sd;
-					sd.BufferDesc.Width  = width;
-					sd.BufferDesc.Height = height;
-					sd.BufferDesc.RefreshRate.Numerator = 60;
-					sd.BufferDesc.RefreshRate.Denominator = 1;
-					sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-					sd.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
-
-					sd.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
-					sd.SampleDesc.Count   = 1;
-					sd.SampleDesc.Quality = 0;
-
-					sd.BufferUsage  = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-					sd.BufferCount  = 1;
-					sd.OutputWindow = hWnd;
-					sd.Windowed     = true;
-					sd.SwapEffect   = DXGI_SWAP_EFFECT_DISCARD;
-					sd.Flags        = 0;
-
-					hr = dxgiFactory->CreateSwapChain(kD3DDevice, &sd, &kSwapChain);
 					if(SUCCEEDED(hr))
 					{
-						hr = kSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&kBackBuffer));
+						kD3DDevice->CreateRenderTargetView(kBackBuffer, 0, &kRenderTargetView);
+
+						// Create the depth/stencil buffer and view.
+
+						D3D11_TEXTURE2D_DESC depthStencilDesc;
+	
+						depthStencilDesc.Width     = kWidth;
+						depthStencilDesc.Height    = kHeight;
+						depthStencilDesc.MipLevels = 1;
+						depthStencilDesc.ArraySize = 1;
+						depthStencilDesc.Format    = DXGI_FORMAT_D24_UNORM_S8_UINT;
+						depthStencilDesc.SampleDesc.Count   = 1;
+						depthStencilDesc.SampleDesc.Quality = 0;
+						depthStencilDesc.Usage          = D3D11_USAGE_DEFAULT;
+						depthStencilDesc.BindFlags      = D3D11_BIND_DEPTH_STENCIL;
+						depthStencilDesc.CPUAccessFlags = 0; 
+						depthStencilDesc.MiscFlags      = 0;
+
+						hr = kD3DDevice->CreateTexture2D(&depthStencilDesc, 0, &kDepthStencilBuffer);
 						if(SUCCEEDED(hr))
 						{
-							kD3DDevice->CreateRenderTargetView(kBackBuffer, 0, &kRenderTargetView);
-
-							// Create the depth/stencil buffer and view.
-
-							D3D11_TEXTURE2D_DESC depthStencilDesc;
-	
-							depthStencilDesc.Width     = width;
-							depthStencilDesc.Height    = height;
-							depthStencilDesc.MipLevels = 1;
-							depthStencilDesc.ArraySize = 1;
-							depthStencilDesc.Format    = DXGI_FORMAT_D24_UNORM_S8_UINT;
-							depthStencilDesc.SampleDesc.Count   = 1;
-							depthStencilDesc.SampleDesc.Quality = 0;
-							depthStencilDesc.Usage          = D3D11_USAGE_DEFAULT;
-							depthStencilDesc.BindFlags      = D3D11_BIND_DEPTH_STENCIL;
-							depthStencilDesc.CPUAccessFlags = 0; 
-							depthStencilDesc.MiscFlags      = 0;
-
-							hr = kD3DDevice->CreateTexture2D(&depthStencilDesc, 0, &kDepthStencilBuffer);
+							hr = kD3DDevice->CreateDepthStencilView(kDepthStencilBuffer, 0, &kDepthStencilView);
 							if(SUCCEEDED(hr))
 							{
-								hr = kD3DDevice->CreateDepthStencilView(kDepthStencilBuffer, 0, &kDepthStencilView);
+								kD3DDeviceContext->OMSetRenderTargets(1, &kRenderTargetView, kDepthStencilView);
 								if(SUCCEEDED(hr))
 								{
-									kD3DDeviceContext->OMSetRenderTargets(1, &kRenderTargetView, kDepthStencilView);
-									if(SUCCEEDED(hr))
-									{
-										kScreenViewport.TopLeftX = 0;
-										kScreenViewport.TopLeftY = 0;
-										kScreenViewport.Width    = static_cast<float>(width);
-										kScreenViewport.Height   = static_cast<float>(height);
-										kScreenViewport.MinDepth = 0.0f;
-										kScreenViewport.MaxDepth = 1.0f;
-										kD3DDeviceContext->RSSetViewports(1, &kScreenViewport);
-									}
+									kScreenViewport.TopLeftX = 0;
+									kScreenViewport.TopLeftY = 0;
+									kScreenViewport.Width    = kWidth;
+									kScreenViewport.Height   = kHeight;
+									kScreenViewport.MinDepth = 0.0f;
+									kScreenViewport.MaxDepth = 1.0f;
+									kD3DDeviceContext->RSSetViewports(1, &kScreenViewport);
 								}
 							}
 						}
@@ -512,15 +498,11 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	ShowWindow(hWnd, nCmdShow);
 	UpdateWindow(hWnd);
 
-	RECT rect;
-	GetClientRect(hWnd, &rect);
-	float width = rect.right - rect.left, height = rect.bottom - rect.top;
-
 	XMMATRIX I = XMMatrixIdentity();
 	XMStoreFloat4x4(&kView, I);
 	XMStoreFloat4x4(&kProj, I);
 
-	XMMATRIX P = XMMatrixPerspectiveFovLH(0.5f*Pi, width / height, 1.0f, 1000.0f);
+	XMMATRIX P = XMMatrixPerspectiveFovLH(0.5f*Pi, 1.0f, 1.0f, 1000.0f);
 	XMStoreFloat4x4(&kProj, P);
 
 	// Build the view matrix.
@@ -540,22 +522,6 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 				BuildGeometryBuffers();				
 
 				D3DX11CreateShaderResourceViewFromFile(kD3DDevice, L"pic.dds", NULL, NULL, &kTexture, NULL);
-
-				D3D11_SAMPLER_DESC samplerDesc;
-				samplerDesc.Filter   = D3D11_FILTER_MIN_MAG_POINT_MIP_LINEAR;
-				samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_MIRROR_ONCE;
-				samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_MIRROR_ONCE;
-				samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-				samplerDesc.MipLODBias = 0.0f;
-				samplerDesc.MaxAnisotropy = 1;
-				samplerDesc.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
-				samplerDesc.BorderColor[0] = 1.0;
-				samplerDesc.BorderColor[1] = 0;
-				samplerDesc.BorderColor[2] = 0;
-				samplerDesc.BorderColor[3] = 1.0;
-				samplerDesc.MinLOD = 0;
-				samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
-				kD3DDevice->CreateSamplerState(&samplerDesc, &kSampleState);
 			}
 		}
 	}
