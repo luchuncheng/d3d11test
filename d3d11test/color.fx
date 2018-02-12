@@ -10,7 +10,12 @@ cbuffer cbPerObject
 };
 
 Texture2D shaderTexture;
-SamplerState SampleType;
+SamplerState SampleType
+{
+    Filter = MIN_MAG_MIP_LINEAR;
+    AddressU = Wrap;
+    AddressV = Wrap;
+};
 
 struct VertexIn
 {

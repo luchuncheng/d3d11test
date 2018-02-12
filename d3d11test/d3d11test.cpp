@@ -10,6 +10,12 @@
 #include <vector>
 #include "d3dx11effect.h"
 
+#include <gdiplus.h>
+
+using namespace Gdiplus;
+
+#pragma comment(lib, "gdiplus.lib")  
+
 const float Pi = 3.1415926535f;
 
 namespace Colors
@@ -57,6 +63,8 @@ ID3D11Buffer* kIB = NULL;
 XMFLOAT4X4 kView;
 XMFLOAT4X4 kProj;
 
+BOOL kCapture = FALSE;
+
 #define MAX_LOADSTRING 100
 
 // Global Variables:
@@ -70,6 +78,88 @@ BOOL				InitInstance(HINSTANCE, int);
 LRESULT CALLBACK	WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK	About(HWND, UINT, WPARAM, LPARAM);
 
+int GetEncoderClsid(const WCHAR* format, CLSID* pClsid)
+{
+	UINT  num = 0;
+	UINT  size = 0;
+	ImageCodecInfo* pImageCodecInfo = NULL;
+	GetImageEncodersSize(&num, &size);
+	if (size == 0) return -1;
+	pImageCodecInfo = (ImageCodecInfo*)(malloc(size));
+	if (pImageCodecInfo == NULL) return -1;
+	GetImageEncoders(num, size, pImageCodecInfo);
+	for (UINT j = 0; j < num; ++j)
+	{
+		if (wcscmp(pImageCodecInfo[j].MimeType, format) == 0)
+		{
+			*pClsid = pImageCodecInfo[j].Clsid;
+			free(pImageCodecInfo);
+			return j;
+		}
+	}
+	free(pImageCodecInfo);
+	return -1;
+}
+
+void SaveTexture(ID3D11Texture2D *texture)
+{
+	HRESULT hr = S_OK;
+
+	D3D11_TEXTURE2D_DESC desc;
+	texture->GetDesc(&desc);
+
+	D3D11_TEXTURE2D_DESC desc2;
+	desc2.Width = desc.Width;
+	desc2.Height = desc.Height;
+	desc2.MipLevels = desc.MipLevels;
+	desc2.ArraySize = desc.ArraySize;
+	desc2.Format = desc.Format;
+	desc2.SampleDesc = desc.SampleDesc;
+	desc2.Usage = D3D11_USAGE_STAGING;
+	desc2.BindFlags = 0;
+	desc2.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+	desc2.MiscFlags = 0;
+
+	ID3D11Texture2D *stagingTexture = NULL;
+	hr = kD3DDevice->CreateTexture2D(&desc2, NULL, &stagingTexture);
+	if (SUCCEEDED(hr))
+	{
+		ID3D11Resource *textureRes = 0, *stagingTextureRes = 0;
+		hr = texture->QueryInterface(__uuidof(ID3D11Resource), (void**)&textureRes);
+		if (SUCCEEDED(hr))
+		{
+			hr = stagingTexture->QueryInterface(__uuidof(ID3D11Resource), (void**)&stagingTextureRes);
+			if (SUCCEEDED(hr))
+			{
+				// copy the texture to a staging resource
+				kD3DDeviceContext->CopyResource(stagingTextureRes, textureRes);
+
+				// now, map the staging resource
+				D3D11_MAPPED_SUBRESOURCE mapInfo;
+				hr = kD3DDeviceContext->Map(stagingTexture, 0, D3D11_MAP_READ, 0, &mapInfo);
+				if (SUCCEEDED(hr))
+				{
+					int bufsize = mapInfo.RowPitch * desc.Height;
+					LPBYTE buffer = (LPBYTE)malloc(bufsize);
+
+					CLSID encoder;
+					GetEncoderClsid(L"image/png", &encoder);
+					Bitmap bmp(desc.Width, desc.Height, mapInfo.RowPitch, PixelFormat32bppRGB, buffer);
+					memcpy(buffer, mapInfo.pData, bufsize);
+					bmp.Save(L"E:\\1.png", &encoder);
+
+					free(buffer);
+
+					kD3DDeviceContext->Unmap(stagingTexture, 0);
+				}
+				stagingTextureRes->Release();
+			}
+			textureRes->Release();
+		}
+		stagingTexture->Release();
+	}
+}
+
 int APIENTRY _tWinMain(HINSTANCE hInstance,
                      HINSTANCE hPrevInstance,
                      LPTSTR    lpCmdLine,
@@ -77,6 +167,10 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 {
 	UNREFERENCED_PARAMETER(hPrevInstance);
 	UNREFERENCED_PARAMETER(lpCmdLine);
+
+	GdiplusStartupInput gdiplusStartupInput;
+	ULONG_PTR gdiplusToken;
+	GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
 	
 	// Initialize global strings
 	LoadString(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
@@ -128,6 +222,12 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 				kD3DDeviceContext->PSSetSamplers(0, 1, &kSampleState);
 				kD3DDeviceContext->PSSetShaderResources(0, 1, &kTexture);
 				kD3DDeviceContext->DrawIndexed(6, 0, 0);
+			}
+			
+			if(kCapture)
+			{
+				kCapture = FALSE;
+				SaveTexture(kBackBuffer);
 			}
 
 			kSwapChain->Present(0, 0);
@@ -424,7 +524,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	XMStoreFloat4x4(&kProj, P);
 
 	// Build the view matrix.
-	XMVECTOR pos    = XMVectorSet(0.0f, 0.0f, -2.0f, 1.0f);
+	XMVECTOR pos    = XMVectorSet(0.0f, 0.0f, -1.0f, 1.0f);
 	XMVECTOR target = XMVectorZero();
 	XMVECTOR up     = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 
@@ -488,8 +588,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		switch (wmId)
 		{
 		case IDM_ABOUT:
-			DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
-			break;
+			{
+				kCapture = TRUE;
+				break;
+			}
 		case IDM_EXIT:
 			DestroyWindow(hWnd);
 			break;
