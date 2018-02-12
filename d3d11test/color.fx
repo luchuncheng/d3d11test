@@ -9,16 +9,21 @@ cbuffer cbPerObject
 	float4x4 gWorldViewProj; 
 };
 
+Texture2D shaderTexture;
+SamplerState SampleType;
+
 struct VertexIn
 {
 	float3 Pos   : POSITION;
 	float4 Color : COLOR;
+    float2 Tex   : TEXCOORD;
 };
 
 struct VertexOut
 {
 	float4 PosH  : SV_POSITION;
     float4 Color : COLOR;
+    float2 Tex   : TEXCOORD;
 };
 
 VertexOut VS(VertexIn vin)
@@ -29,14 +34,14 @@ VertexOut VS(VertexIn vin)
 	vout.PosH = mul(float4(vin.Pos, 1.0f), gWorldViewProj);
 	
 	// Just pass vertex color into the pixel shader.
-    vout.Color = vin.Color;
+    vout.Tex   = vin.Tex;
     
     return vout;
 }
 
 float4 PS(VertexOut pin) : SV_Target
 {
-    return pin.Color;
+	return shaderTexture.Sample(SampleType, pin.Tex);
 }
 
 technique11 ColorTech

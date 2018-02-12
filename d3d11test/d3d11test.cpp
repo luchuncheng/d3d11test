@@ -4,6 +4,7 @@
 #include "stdafx.h"
 #include "d3d11test.h"
 #include <d3d11.h>
+#include <D3DX11tex.h>
 #include <xnamath.h>
 #include <fstream>
 #include <vector>
@@ -30,6 +31,7 @@ struct Vertex
 {
 	XMFLOAT3 Pos;
 	XMFLOAT4 Color;
+	XMFLOAT2 Texcoord;
 };
 
 ID3D11Device* kD3DDevice = NULL;
@@ -42,11 +44,12 @@ ID3D11DepthStencilView* kDepthStencilView = NULL;
 ID3D11InputLayout *kInputLayout = NULL;
 D3D11_VIEWPORT kScreenViewport;
 
-ID3D11RasterizerState* kWireframeRS = NULL;
-
 ID3DX11Effect* kFX = NULL;
 ID3DX11EffectTechnique* kTech = NULL;
 ID3DX11EffectMatrixVariable* fxWorldViewProj = NULL;
+
+ID3D11ShaderResourceView* kTexture = NULL;
+ID3D11SamplerState*       kSampleState = NULL;
 
 ID3D11Buffer* kVB = NULL;
 ID3D11Buffer* kIB = NULL;
@@ -105,16 +108,12 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 			kD3DDeviceContext->IASetInputLayout(kInputLayout);
 			kD3DDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-			kD3DDeviceContext->RSSetState(kWireframeRS);
-
 			UINT stride = sizeof(Vertex);
 			UINT offset = 0;
 			kD3DDeviceContext->IASetVertexBuffers(0, 1, &kVB, &stride, &offset);
-			kD3DDeviceContext->IASetIndexBuffer(kIB, DXGI_FORMAT_R32_UINT, 0);
-			
+			kD3DDeviceContext->IASetIndexBuffer(kIB, DXGI_FORMAT_R32_UINT, 0);			
 
-			// Set constants
-	
+			// Set constants	
 			XMMATRIX view  = XMLoadFloat4x4(&kView);
 			XMMATRIX proj  = XMLoadFloat4x4(&kProj);
 			XMMATRIX viewProj = view*proj;
@@ -126,6 +125,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 				// Draw the grid.
 				fxWorldViewProj->SetMatrix(reinterpret_cast<float*>(&viewProj));
 				kTech->GetPassByIndex(p)->Apply(0, kD3DDeviceContext);
+				kD3DDeviceContext->PSSetSamplers(0, 1, &kSampleState);
+				kD3DDeviceContext->PSSetShaderResources(0, 1, &kTexture);
 				kD3DDeviceContext->DrawIndexed(6, 0, 0);
 			}
 
@@ -335,14 +336,15 @@ BOOL BuildVertexLayout()
 	// Create the vertex input layout.
 	D3D11_INPUT_ELEMENT_DESC vertexDesc[] =
 	{
-		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
-		{"COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0}
+		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0, 0,  D3D11_INPUT_PER_VERTEX_DATA, 0},
+		{"COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
+		{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT      , 0, 28, D3D11_INPUT_PER_VERTEX_DATA, 0}
 	};
 
 	// Create the input layout
     D3DX11_PASS_DESC passDesc;
     kTech->GetPassByIndex(0)->GetDesc(&passDesc);
-	if(SUCCEEDED(kD3DDevice->CreateInputLayout(vertexDesc, 2, passDesc.pIAInputSignature, passDesc.IAInputSignatureSize, &kInputLayout)))
+	if(SUCCEEDED(kD3DDevice->CreateInputLayout(vertexDesc, 3, passDesc.pIAInputSignature, passDesc.IAInputSignatureSize, &kInputLayout)))
 	{
 		return TRUE;
 	}
@@ -353,10 +355,10 @@ BOOL BuildVertexLayout()
 void BuildGeometryBuffers()
 {
 	Vertex vertices[4] = {
-		{XMFLOAT3(-1.0f, -1.0f, 0.0f), XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f)}, 
-		{XMFLOAT3(-1.0f,  1.0f, 0.0f), XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f)}, 
-		{XMFLOAT3( 1.0f,  1.0f, 0.0f), XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f)}, 
-		{XMFLOAT3( 1.0f, -1.0f, 0.0f), XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f)}, 
+		{XMFLOAT3(-1.0f, -1.0f, 0.0f), XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f), XMFLOAT2(0.0f, 0.0f)}, 
+		{XMFLOAT3(-1.0f,  1.0f, 0.0f), XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f), XMFLOAT2(0.0f, 1.0f)}, 
+		{XMFLOAT3( 1.0f,  1.0f, 0.0f), XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f), XMFLOAT2(1.0f, 1.0f)}, 
+		{XMFLOAT3( 1.0f, -1.0f, 0.0f), XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f), XMFLOAT2(1.0f, 0.0f)}, 
 	};
 
 	int indices[6] = {0, 1, 2, 0, 2, 3};
@@ -412,7 +414,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 	RECT rect;
 	GetClientRect(hWnd, &rect);
-	int width = rect.right - rect.left, height = rect.bottom - rect.top;
+	float width = rect.right - rect.left, height = rect.bottom - rect.top;
 
 	XMMATRIX I = XMMatrixIdentity();
 	XMStoreFloat4x4(&kView, I);
@@ -422,7 +424,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	XMStoreFloat4x4(&kProj, P);
 
 	// Build the view matrix.
-	XMVECTOR pos    = XMVectorSet(0.0f, 0.0f, -1.0f, 1.0f);
+	XMVECTOR pos    = XMVectorSet(0.0f, 0.0f, -2.0f, 1.0f);
 	XMVECTOR target = XMVectorZero();
 	XMVECTOR up     = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 
@@ -437,13 +439,23 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 			{
 				BuildGeometryBuffers();				
 
-				D3D11_RASTERIZER_DESC wireframeDesc;
-				ZeroMemory(&wireframeDesc, sizeof(D3D11_RASTERIZER_DESC));
-				wireframeDesc.FillMode = D3D11_FILL_WIREFRAME;
-				wireframeDesc.CullMode = D3D11_CULL_BACK;
-				wireframeDesc.FrontCounterClockwise = false;
-				wireframeDesc.DepthClipEnable = true;
-				kD3DDevice->CreateRasterizerState(&wireframeDesc, &kWireframeRS);
+				D3DX11CreateShaderResourceViewFromFile(kD3DDevice, L"pic.dds", NULL, NULL, &kTexture, NULL);
+
+				D3D11_SAMPLER_DESC samplerDesc;
+				samplerDesc.Filter   = D3D11_FILTER_MIN_MAG_POINT_MIP_LINEAR;
+				samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_MIRROR_ONCE;
+				samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_MIRROR_ONCE;
+				samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+				samplerDesc.MipLODBias = 0.0f;
+				samplerDesc.MaxAnisotropy = 1;
+				samplerDesc.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
+				samplerDesc.BorderColor[0] = 1.0;
+				samplerDesc.BorderColor[1] = 0;
+				samplerDesc.BorderColor[2] = 0;
+				samplerDesc.BorderColor[3] = 1.0;
+				samplerDesc.MinLOD = 0;
+				samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+				kD3DDevice->CreateSamplerState(&samplerDesc, &kSampleState);
 			}
 		}
 	}
