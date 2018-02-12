@@ -78,7 +78,6 @@ ID3D11Buffer* kIB = NULL;
 
 MeshData kBoxMeshData;
 
-XMFLOAT4X4 kBoxWorld;
 XMFLOAT4X4 kView;
 XMFLOAT4X4 kProj;
 
@@ -152,8 +151,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 			for(UINT p = 0; p < techDesc.Passes; ++p)
 			{
 				// Draw the grid.
-				XMMATRIX world = XMLoadFloat4x4(&kBoxWorld);
-				fxWorldViewProj->SetMatrix(reinterpret_cast<float*>(&(world*viewProj)));
+				fxWorldViewProj->SetMatrix(reinterpret_cast<float*>(&viewProj));
 				kTech->GetPassByIndex(p)->Apply(0, kD3DDeviceContext);
 				kD3DDeviceContext->DrawIndexed(kBoxMeshData.Indices.size(), 0, 0);
 			}
@@ -537,10 +535,6 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 	XMMATRIX V = XMMatrixLookAtLH(pos, target, up);
 	XMStoreFloat4x4(&kView, V);
-
-	XMMATRIX boxScale = XMMatrixScaling(2.0f, 1.0f, 2.0f);
-	XMMATRIX boxOffset = XMMatrixTranslation(0.0f, 0.5f, 0.0f);
-	XMStoreFloat4x4(&kBoxWorld, XMMatrixMultiply(boxScale, boxOffset));
 
 	if(SUCCEEDED(CreateD3DDevice(hWnd)))
 	{
