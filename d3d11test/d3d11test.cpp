@@ -160,6 +160,82 @@ void SaveTexture(ID3D11Texture2D *texture)
 	}
 }
 
+ID3D11Texture2D *CreateTextureFromMemory(void *data, int width, int height, int stride)
+{
+	ID3D11Texture2D *texture = 0;
+
+	HRESULT hr = S_OK;
+
+	D3D11_TEXTURE2D_DESC desc;
+	desc.Width = width;
+	desc.Height = height;
+	desc.MipLevels = 1;
+	desc.MiscFlags = 0;
+	desc.ArraySize = 1;
+	desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; 
+	desc.SampleDesc.Count   = 1;
+	desc.SampleDesc.Quality = 0;
+	desc.Usage = D3D11_USAGE_STAGING;
+	desc.BindFlags = 0;
+	desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	
+	ID3D11Texture2D *stagingTexture = NULL;
+	hr = kD3DDevice->CreateTexture2D(&desc, NULL, &stagingTexture);
+	if (SUCCEEDED(hr))
+	{
+		D3D11_MAPPED_SUBRESOURCE mapInfo;
+		hr = kD3DDeviceContext->Map(stagingTexture, 0, D3D11_MAP_WRITE, 0, &mapInfo);
+		if (SUCCEEDED(hr))
+		{
+			char *src = (char*)data, *dst = (char*)mapInfo.pData + mapInfo.RowPitch * (height - 1);
+			for(int i = 0; i < height; i++, src += stride, dst -= mapInfo.RowPitch)
+			{
+				memcpy(dst, src, stride);
+			}
+			kD3DDeviceContext->Unmap(stagingTexture, 0);
+		}
+
+	}				
+	
+	if(stagingTexture != 0)
+	{
+		D3D11_TEXTURE2D_DESC textureDesc;   
+		textureDesc.Width = width;  
+		textureDesc.Height = height;  
+		textureDesc.MiscFlags = 0;  
+		textureDesc.MipLevels = 1;  
+		textureDesc.ArraySize = 1;  
+		textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		textureDesc.SampleDesc.Count = 1;  
+		textureDesc.SampleDesc.Quality = 0;
+		textureDesc.Usage = D3D11_USAGE_DEFAULT;  
+		textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;  
+		textureDesc.CPUAccessFlags = 0;  
+  
+		hr = kD3DDevice->CreateTexture2D(&textureDesc, NULL, &texture);
+		if (SUCCEEDED(hr))
+		{
+			kD3DDeviceContext->CopyResource(texture, stagingTexture);
+		}
+		stagingTexture->Release();
+	}
+
+	return texture;
+}
+
+ID3D11Texture2D *CreateTextureFromFile(const wchar_t *file)
+{
+	Bitmap bmp(file);
+	Rect rect(0, 0, bmp.GetWidth(), bmp.GetHeight());
+	BitmapData bd;
+	if(Ok == bmp.LockBits(&rect, ImageLockModeRead, PixelFormat32bppARGB, &bd))
+	{
+		return CreateTextureFromMemory(bd.Scan0, bd.Width, bd.Height, bd.Stride);
+	}
+	return 0;
+}
+
+
 int APIENTRY _tWinMain(HINSTANCE hInstance,
                      HINSTANCE hPrevInstance,
                      LPTSTR    lpCmdLine,
@@ -519,9 +595,19 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 		{
 			if(BuildVertexLayout())
 			{
-				BuildGeometryBuffers();				
+				BuildGeometryBuffers();	
+		
+				ID3D11Texture2D *texture = CreateTextureFromFile(L"test.png");
 
-				D3DX11CreateShaderResourceViewFromFile(kD3DDevice, L"pic.dds", NULL, NULL, &kTexture, NULL);
+				if(texture != 0)
+				{
+					D3D11_SHADER_RESOURCE_VIEW_DESC desc;  
+					desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+					desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+					desc.Texture2D.MipLevels = 1; 
+					desc.Texture2D.MostDetailedMip = 0;
+					kD3DDevice->CreateShaderResourceView(texture, &desc, &kTexture);
+				}
 			}
 		}
 	}
